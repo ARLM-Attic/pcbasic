@@ -131,6 +131,7 @@ def dos_splitext(dos_name):
     # differs from ntpath.splitext:
     # - does not include . in extension; no extension equals ending in .
     # - dotfiles are trunks starting with . in ntpath but extensions here.
+    assert isinstance(dos_name, bytes), type(dos_name)
     elements = dos_name.split(b'.', 1)
     if len(elements) == 1:
         trunk, ext = elements[0], b''
@@ -161,6 +162,7 @@ def dos_normalise_name(dos_name):
 
 def dos_is_legal_name(dos_name):
     """Check if a (bytes) name is a legal DOS name."""
+    assert isinstance(dos_name, bytes), type(dos_name)
     if dos_name in (b'.', b'..'):
         return True
     trunk, ext = dos_splitext(dos_name)
@@ -445,20 +447,25 @@ class DiskDevice(object):
         _, files = self._get_dirs_files(native_dir)
         # filter according to mask
         trunkmask, extmask = dos_splitext(dos_mask)
-        split = {
-            dos_splitext(self._get_dos_display_name(native_dir, name)): name
-            for name in files
+        dos_to_native = {
+            self._get_dos_display_name(native_dir, _native_name): _native_name
+            for _native_name in files
         }
-        to_kill_dos = (
-                split[(trunk, ext)] for (trunk, ext) in split
-                if dos_name_matches(trunk, trunkmask) and dos_name_matches(ext, extmask)
-            )
+        to_kill_dos = []
+        for dos_name in dos_to_native:
+            trunk, ext = dos_splitext(dos_name)
+            if dos_name_matches(trunk, trunkmask) and dos_name_matches(ext, extmask):
+                to_kill_dos.append(dos_name)
         to_kill = [
-                # NOTE that this depends on display names NOT being legal names for overlong names
-                # i.e. a + is included at the end of the display name which is not legal
-                os.path.join(native_dir, f) for f in to_kill_dos
-                if dos_is_legal_name(f) and not is_hidden(os.path.join(native_dir, f))
-            ]
+            # NOTE that this depends on display names NOT being legal names for overlong names
+            # i.e. a + is included at the end of the display name which is not legal
+            os.path.join(native_dir, dos_to_native[_dos_name])
+            for _dos_name in to_kill_dos
+            if (
+                dos_is_legal_name(_dos_name) and
+                not is_hidden(os.path.join(native_dir, dos_to_native[_dos_name]))
+            )
+        ]
         if not to_kill:
             raise error.BASICError(error.FILE_NOT_FOUND)
         for dos_path in to_kill_dos:
@@ -641,9 +648,9 @@ class DiskDevice(object):
         all_files = (self._get_dos_display_name(native_dirpath, name) for name in native_names)
         split = [dos_splitext(dos_name) for dos_name in all_files]
         return sorted(
-                (trunk, ext) for (trunk, ext) in split
-                if dos_name_matches(trunk, trunkmask) and dos_name_matches(ext, extmask)
-            )
+            (trunk, ext) for (trunk, ext) in split
+            if dos_name_matches(trunk, trunkmask) and dos_name_matches(ext, extmask)
+        )
 
 
 ##############################################################################
@@ -695,10 +702,7 @@ class CodecReader(StreamWrapperBase):
             unistr = self._stream.read()
         else:
             unistr = u''
-        converted = (
-                self._buffer +
-                self._codepage.str_from_unicode(unistr, errors='replace')
-            )
+        converted = (self._buffer + self._codepage.str_from_unicode(unistr, errors='replace'))
         if n < 0:
             return converted
         else:
@@ -811,7 +815,8 @@ class InternalDiskDevice(DiskDevice):
 
     def open(
             self, number, filespec, filetype, mode, access, lock,
-            reclen, seg, offset, length, field):
+            reclen, seg, offset, length, field
+        ):
         """Open a file on the internal disk drive."""
         if filespec in self._bound_files:
             fhandle = self._bound_files[filespec].get_stream(mode)
