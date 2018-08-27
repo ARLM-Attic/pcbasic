@@ -20,12 +20,12 @@ import logging
 import codecs
 
 from six.moves import xrange
-from six import string_types
+from six import string_types, text_type
 
 from ..base import error
 from ..base.tokens import ALPHANUMERIC
 from ..codepage import CONTROL
-from ...compat import get_short_pathname, get_free_bytes, is_hidden
+from ...compat import get_short_pathname, get_free_bytes, is_hidden, iterchar
 from .. import values
 from . import devicebase
 from .diskfiles import BinaryFile, TextFile, RandomFile, Locks
@@ -176,7 +176,7 @@ def dos_is_legal_name(dos_name):
 def dos_to_native_name(native_path, dosname, isdir):
     """Find a matching native file name for a given normalised DOS name."""
     try:
-        uni_name = dosname.decode(b'ascii')
+        uni_name = dosname.decode('ascii')
     except UnicodeDecodeError:
         # non-ascii characters are not allowable for DOS filenames, no match
         return None
@@ -192,7 +192,7 @@ def dos_to_native_name(native_path, dosname, isdir):
     for f in sorted(all_names):
         # we won't match non-ascii anyway
         try:
-            ascii_name = f.encode(b'ascii')
+            ascii_name = f.encode('ascii')
         except UnicodeEncodeError:
             continue
         # don't match long names or non-legal dos names
@@ -206,7 +206,7 @@ def dos_name_matches(name, mask):
     """Whether native name element matches DOS wildcard mask."""
     # convert wildcard mask to regexp
     regexp = b'\\A'
-    for c in mask.upper():
+    for c in iterchar(mask.upper()):
         if c == b'?':
             regexp += b'.'
         elif c == b'*':
@@ -229,15 +229,14 @@ class DiskDevice(object):
 
     def __init__(self, letter, path, cwd, codepage, utf8, universal):
         """Initialise a disk device."""
+        assert isinstance(cwd, text_type), type(cwd)
         # DOS drive letter
         self.letter = letter
         # mount root: this is a native filesystem path, using os.sep
         self._native_root = path
         # code page for file system names and text file conversion
         self._codepage = codepage
-        # current DOS working directory on this drive
-        # this is a DOS relative path, no drive letter; including leading \\
-        # stored with os.sep but given using backslash separators
+        # current native working directory on this drive
         self._native_cwd = u''
         if self._native_root:
             try:
@@ -378,7 +377,7 @@ class DiskDevice(object):
             # this drive letter is not available (not mounted)
             raise error.BASICError(error.PATH_NOT_FOUND)
         # find starting directory
-        if dospath and dospath[0] == b'\\':
+        if dospath and dospath[:1] == b'\\':
             # absolute path specified
             cwd = []
         else:
@@ -394,7 +393,7 @@ class DiskDevice(object):
             dospath_elements = dospath_elements[1:]
         # prepend drive root path to allow filename matching
         path = os.path.join(self._native_root, *cwd)
-        root_len = len(self._native_root) + (self._native_root[-1] != os.sep)
+        root_len = len(self._native_root) + (self._native_root[-1:] != os.sep)
         # find the native matches for each step in the path
         for dos_elem in dospath_elements:
             # find a matching directory for every step in the path;
@@ -446,7 +445,10 @@ class DiskDevice(object):
         _, files = self._get_dirs_files(native_dir)
         # filter according to mask
         trunkmask, extmask = dos_splitext(dos_mask)
-        split = {dos_splitext(name): name for name in files}
+        split = {
+            dos_splitext(self._get_dos_display_name(native_dir, name)): name
+            for name in files
+        }
         to_kill_dos = (
                 split[(trunk, ext)] for (trunk, ext) in split
                 if dos_name_matches(trunk, trunkmask) and dos_name_matches(ext, extmask)
@@ -505,7 +507,7 @@ class DiskDevice(object):
         fils = []
         if dos_mask in (b'.', b'..'):
             # following GW, we just show a single dot if asked for either . or ..
-            dirs = [(u'', u'')]
+            dirs = [(b'', b'')]
         else:
             dirs, fils = self._get_dirs_files(native_path)
             # remove hidden files
@@ -578,7 +580,7 @@ class DiskDevice(object):
         if dos_name != dos_name.lstrip():
             raise error.BASICError(name_err)
         dos_name = self._get_dos_name_defext(dos_name, defext)
-        if dos_name[-1] == b'.' and b'.' not in dos_name[:-1]:
+        if dos_name[-1:] == b'.' and b'.' not in dos_name[:-1]:
             # ends in single dot; first try with dot
             # but if it doesn't exist, base everything off dotless name
             uni_name = self._codepage.str_to_unicode(dos_name, box_protect=False)
@@ -602,7 +604,7 @@ class DiskDevice(object):
         if create:
             # create a new filename
             # we should have only ascii due to dos_is_legal_name check above
-            return norm_name.decode(b'ascii', errors='replace')
+            return norm_name.decode('ascii', errors='replace')
         else:
             raise error.BASICError(name_err)
 

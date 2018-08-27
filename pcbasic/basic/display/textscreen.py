@@ -10,6 +10,7 @@ import logging
 
 from six import iteritems, int2byte
 
+from ...compat import iterchar
 from ..base import signals
 from ..base import error
 from ..base import tokens as tk
@@ -134,11 +135,11 @@ class TextScreen(object):
         """Write a string to the screen at the current position."""
         if do_echo:
             # CR -> CRLF, CRLF -> CRLF LF
-            self._io_streams.write(b''.join([(b'\r\n' if c == b'\r' else c) for c in s]))
+            self._io_streams.write(b''.join([(b'\r\n' if c == b'\r' else c) for c in iterchar(s)]))
         last = b''
         # if our line wrapped at the end before, it doesn't anymore
         self.text.pages[self.apagenum].row[self.current_row-1].wrap = False
-        for c in s:
+        for c in iterchar(s):
             row, col = self.current_row, self.current_col
             if c == b'\t':
                 # TAB
@@ -553,7 +554,7 @@ class TextScreen(object):
 
     def _rewrite_for_delete(self, text):
         """Rewrite text contents (with the current attribute)."""
-        for c in text:
+        for c in iterchar(text):
             if c == b'\n':
                 self.put_char_attr(
                     self.apagenum, self.current_row, self.current_col, b' ', self.attr
@@ -575,7 +576,7 @@ class TextScreen(object):
     def insert_fullchars(self, row, col, sequence, attr):
         """Insert one or more single- or double-width characters at the current position."""
         start_row, start_col = row, col
-        for c in sequence:
+        for c in iterchar(sequence):
             while True:
                 therow = self.text.pages[self.apagenum].row[row-1]
                 therow.buf.insert(col-1, (c, attr))

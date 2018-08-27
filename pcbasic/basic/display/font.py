@@ -210,7 +210,7 @@ else:
         # double the width if code width incorrect
         if force_double:
             for yy in range(code_height):
-                for xx in range(req_width_base, -1, -1):
+                for xx in range(req_width_base-1, -1, -1):
                     glyph[yy][2*xx+1] = glyph[yy][xx]
                     glyph[yy][2*xx] = glyph[yy][xx]
         return glyph
@@ -287,7 +287,7 @@ class GlyphCache(object):
             if char not in self._glyphs:
                 self._submit_char(char)
             mask = self._glyphs[char]
-            glyph = [[(fore if bit else back) for bit in row] for row in mask]
+            glyph = [[(fore if _bit else back) for _bit in _row] for _row in mask]
             x0, y0 = (col-1) * self._mode.font_width, (row-1) * self._mode.font_height
             x1, y1 = x0 + len(mask[0]) - 1, y0 + len(mask) - 1
             return x0, y0, x1, y1, glyph
