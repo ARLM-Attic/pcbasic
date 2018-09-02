@@ -174,12 +174,11 @@ class PixelPage(object):
 
         def put_interval(self, x, y, colours, mask=0xff):
             """Write a list of attributes to a scanline interval."""
-            if mask != 0xff:
-                inv_mask = 0xff ^ mask
-                self.buffer[y][x:x+len(colours)] = [
-                    (c & mask) | (self.buffer[y][x+i] & inv_mask)
-                    for i, c in enumerate(colours)
-                ]
+            inv_mask = 0xff ^ mask
+            self.buffer[y][x:x+len(colours)] = [
+                (c & mask) | (self.buffer[y][x+i] & inv_mask)
+                for i, c in enumerate(colours)
+            ]
             return self.buffer[y][x:x+len(colours)]
 
         def get_interval(self, x, y, length):
@@ -207,7 +206,7 @@ class PixelPage(object):
                 for y in range(y0, y1+1):
                     self.buffer[y][x0:x1+1] = [
                         self.operations[operation_token](a, b)
-                        for a, b in zip(self.buffer[y][x0:x1+1], array[y])
+                        for a, b in zip(self.buffer[y][x0:x1+1], array[y-y0])
                     ]
                 return [self.buffer[y][x0:x1+1] for y in range(y0, y1+1)]
             except IndexError:
