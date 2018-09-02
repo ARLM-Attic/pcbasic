@@ -6,13 +6,15 @@ BytesIO extension with externally provided buffer
 This file is released under the GNU GPL version 3 or later.
 """
 
-import _pyio
+from _pyio import BytesIO
 
-class ByteStream(_pyio.BytesIO):
+
+class ByteStream(BytesIO):
     """Extension of BytesIO with accessible buffer."""
 
     def __init__(self, initial_bytes):
         """Create new ByteStream."""
-        _pyio.BytesIO.__init__(self)
+        BytesIO.__init__(self)
+        assert isinstance(initial_bytes, bytearray)
         # use the actual object as a buffer, do not copy
         self._buffer = initial_bytes
